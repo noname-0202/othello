@@ -141,7 +141,7 @@ fn learn(
 }
 
 #[pymodule]
-fn othello(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn othello(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(learn, m)?)?;
     Ok(())
 }
