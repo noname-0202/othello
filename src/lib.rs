@@ -246,7 +246,7 @@ impl<'a> DQNAgent<'a> {
     }
 }
 
-#[pyfunction(name="learn")]
+#[pyfunction]
 fn learn(
     num_epochs: i64,
     learning_rate: f64,
