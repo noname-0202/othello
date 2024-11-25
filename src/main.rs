@@ -11,25 +11,22 @@ use tch::{nn, Device, Tensor};
 use rayon;
 use rayon::iter::ParallelIterator;
 
-fn dqn(vs: &nn::Path, input_dim: i64, output_dim: i64) -> Sequential {
-    const FIRST_LAYER_SIZE: i64 = 32;
-    const NUM_LAYERS: u32 = 2;
-
-    (0..NUM_LAYERS)
+fn dqn(vs: &nn::Path, input_dim: i64, output_dim: i64, num_layers: u32, first_layer_size: i64) -> Sequential {
+    (0..num_layers)
         .fold(
             nn::seq()
                 .add(nn::linear(
                     vs / "layer_in",
                     input_dim,
-                    FIRST_LAYER_SIZE,
+                    first_layer_size,
                     Default::default(),
                 ))
                 .add_fn(|xs| xs.relu()),
             |seq, i| {
                 seq.add(nn::linear(
                     vs / format!("layer_{}", i),
-                    FIRST_LAYER_SIZE * (2i64.pow(i)),
-                    FIRST_LAYER_SIZE * (2i64.pow(i + 1)),
+                    first_layer_size * (2i64.pow(i)),
+                    first_layer_size * (2i64.pow(i + 1)),
                     Default::default(),
                 ))
                 .add_fn(|xs| xs.relu())
@@ -37,7 +34,7 @@ fn dqn(vs: &nn::Path, input_dim: i64, output_dim: i64) -> Sequential {
         )
         .add(nn::linear(
             vs / "layer_out",
-            FIRST_LAYER_SIZE * (2i64.pow(NUM_LAYERS)),
+            first_layer_size * (2i64.pow(num_layers)),
             output_dim,
             Default::default(),
         ))
@@ -74,11 +71,13 @@ impl<'a> DQNAgent<'a> {
         epsilon_decay: f64,
         batch_size: usize,
         update_target_every: usize,
+        num_layers: u32,
+        first_layer_size: i64,
     ) -> Self {
         let vs_q: VarStore = VarStore::new(Device::Cpu);
         let mut vs_t: VarStore = VarStore::new(Device::Cpu);
-        let q_network: Sequential = dqn(&vs_q.root(), state_dim, action_dim);
-        let target_network: Sequential = dqn(&vs_t.root(), state_dim, action_dim);
+        let q_network: Sequential = dqn(&vs_q.root(), state_dim, action_dim, num_layers, first_layer_size);
+        let target_network: Sequential = dqn(&vs_t.root(), state_dim, action_dim, num_layers, first_layer_size);
         let _ = vs_t.copy(&vs_q);
         let optimizer = nn::Adam::default().build(&vs_q, learning_rate).unwrap();
         let memory: VecDeque<([i64; 64], i64, f64, [i64; 64], bool)> =
@@ -243,6 +242,8 @@ fn learn(
     update_target_every: usize,
     print_every: i64,
     replay_every: usize,
+    num_layers: u32,
+    first_layer_size: i64,
 ) ->f64 {
     let mut board = Board::new();
     let mut agent = DQNAgent::new(
@@ -257,6 +258,8 @@ fn learn(
         epsilon_decay,
         batch_size,
         update_target_every,
+        num_layers,
+        first_layer_size,
     );
 
     let mut results: [u64; 3] = [0, 0, 0];
@@ -382,6 +385,8 @@ fn main() {
             let batch_size = rng.gen_range(1..=10000);
             let update_target_every = rng.gen_range(1..=1000);
             let replay_every = rng.gen_range(1..=1000);
+            let num_layers: u32 = rng.gen_range(1..=5);
+            let first_layer_size: i64 = [8, 16, 32, 64, 128][rng.gen_range(0..5)];
 
             let win_rate = learn(
                 100000,
@@ -395,6 +400,8 @@ fn main() {
                 update_target_every,
                 1000000,
                 replay_every,
+                num_layers,
+                first_layer_size,
             );
 
             // 勝率とパラメータをタプルで返す
@@ -410,11 +417,13 @@ fn main() {
                     batch_size,
                     update_target_every,
                     replay_every,
+                    num_layers,
+                    first_layer_size,
                 ),
             )
         })
         .reduce(
-            || (0.0, (0.0, 0, 0.0, 0.0, 0.0, 0.0, 0, 0, 0)), // 初期値
+            || (0.0, (0.0, 0, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0)), // 初期値
             |a, b| if a.0 > b.0 { a } else { b }, // 最大値を選択
         );
 
@@ -431,6 +440,8 @@ fn main() {
     println!("BATCH_SIZE: {}", best_params.6);
     println!("UPDATE_TARGET_EVERY: {}", best_params.7);
     println!("REPLAY_EVERY: {}", best_params.8);
+    println!("NUM_LAYERS: {}", best_params.9);
+    println!("FIRST_LAYER_SIZE: {}", best_params.10);
 }
 /*
 以下のRustコードは、パラメータチューニングのためのコードになる予定です。learn関数はf64(AIの勝率)を返します。勝率が時のパラメータを100回試行後に出力するチューニング用のコードを書いてください。チューニングの要件は以下です。
