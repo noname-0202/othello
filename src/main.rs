@@ -8,7 +8,7 @@ use rayon::scope;
 use std::sync::{Arc, Mutex};
 
 fn main() {
-    const NUM_PARALLEL: usize = 200;
+    const NUM_PARALLEL: usize = 100;
     const NUM_TRIALS: usize = 1000;
 
     // 並列処理を行うスレッドプールを指定されたジョブ数で作成
