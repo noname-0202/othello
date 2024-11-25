@@ -3,11 +3,15 @@ name = "othello"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-name="othello"
-crate-type = ["cdylib"]
-
 [profile.release]
+opt-level = 3       # 最大の最適化レベル
+lto = true            # Link Time Optimizationを有効化
+codegen-units = 1     # コード生成ユニットを1つに。LTOの効果を高めるが、コンパイル時間が増加する
+panic = "abort"       # パニック時の処理をabortに変更。バイナリサイズを削減
+debug-assertions = false # デバッグアサーションを無効化
+overflow-checks = false # オーバーフローチェックを無効化
+
+[profile.dev]
 opt-level = 3       # 最大の最適化レベル
 lto = true            # Link Time Optimizationを有効化
 codegen-units = 1     # コード生成ユニットを1つに。LTOの効果を高めるが、コンパイル時間が増加する
@@ -18,4 +22,4 @@ overflow-checks = false # オーバーフローチェックを無効化
 [dependencies]
 tch = {git="https://github.com/LaurentMazare/tch-rs.git", branch="main"}
 rand="0.8.5"
-pyo3 = { version = "0.23.1", features = ["extension-module"] }
+indicatif="0.17.9"

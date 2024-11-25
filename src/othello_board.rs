@@ -34,6 +34,7 @@ impl Board {
     pub fn reset(&mut self) {
         self.board = self.default_board.clone();
     }
+    #[inline]
     pub fn lookup(&mut self, row: isize, column: isize, color: i64) -> Option<Vec<[usize; 2]>> {
         let other: i64 = if color == BLACK { WHITE } else { BLACK };
 
