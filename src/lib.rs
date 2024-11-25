@@ -1,8 +1,8 @@
+use pyo3::prelude::*;
 mod othello_board;
 mod agent;
 use othello_board::*;
 use agent::DQNAgent;
-use pyo3::prelude::*;
 use rand::seq::SliceRandom;
 use std::io::{stdout, Write};
 
