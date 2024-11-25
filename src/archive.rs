@@ -7,6 +7,7 @@ use rayon;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 
+
 fn main() {
     const NUM_TRIALS: usize = 1000;
     // 並列処理を行うスレッドプールを指定されたジョブ数で作成

@@ -1,4 +1,5 @@
-use crate::othello_board::*;
+mod othello_board;
+use othello_board::*;
 use rand::seq::{IteratorRandom, SliceRandom};
 use rand::Rng;
 use std::collections::VecDeque;
@@ -6,6 +7,7 @@ use std::io::{stdout, Write};
 use tch;
 use tch::nn::{Module, OptimizerConfig, Sequential, VarStore};
 use tch::{nn, Device, Tensor};
+use pyo3::prelude::*;
 
 fn dqn(
     vs: &nn::Path,
@@ -244,7 +246,8 @@ impl<'a> DQNAgent<'a> {
     }
 }
 
-pub fn learn(
+#[pyfunction(name="learn")]
+fn learn(
     num_epochs: i64,
     learning_rate: f64,
     memory_maxlen: usize,
@@ -258,7 +261,7 @@ pub fn learn(
     replay_every: usize,
     num_layers: u32,
     first_layer_size: i64,
-) -> f64 {
+) -> PyResult<f64> {
     let mut board = Board::new();
     let mut agent = DQNAgent::new(
         64,
@@ -374,5 +377,11 @@ pub fn learn(
             stdout().flush().unwrap();
         }
     }
-    (results[0] as f64) / (results.iter().sum::<u64>() as f64)
+    Ok((results[0] as f64) / (results.iter().sum::<u64>() as f64))
+}
+
+#[pymodule]
+fn othello(m: &Bound<'_, PyModule>)->PyResult<()> {
+    m.add_function(wrap_pyfunction!(learn, m)?)?;
+    Ok(())
 }

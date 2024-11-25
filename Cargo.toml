@@ -3,6 +3,10 @@ name = "othello"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name="othello"
+crate-type = ["cdylib"]
+
 [profile.release]
 opt-level = 3       # 最大の最適化レベル
 lto = true            # Link Time Optimizationを有効化
@@ -22,5 +26,4 @@ overflow-checks = false # オーバーフローチェックを無効化
 [dependencies]
 tch = {git="https://github.com/LaurentMazare/tch-rs.git", branch="main"}
 rand="0.8.5"
-rayon="1.10.0"
-indicatif="0.17.9"
+pyo3 = { version = "0.23.1", features = ["extension-module"] }
