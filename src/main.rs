@@ -364,7 +364,7 @@ fn learn(
 }
 
 fn main() {
-    const NUM_PARALLEL: usize=90;
+    const NUM_PARALLEL: usize=200;
     const NUM_TRIALS: usize=1000;
     // 並列処理を行うスレッドプールを指定されたジョブ数で作成
     rayon::ThreadPoolBuilder::new()
@@ -443,34 +443,3 @@ fn main() {
     println!("NUM_LAYERS: {}", best_params.9);
     println!("FIRST_LAYER_SIZE: {}", best_params.10);
 }
-/*
-以下のRustコードは、パラメータチューニングのためのコードになる予定です。learn関数はf64(AIの勝率)を返します。勝率が時のパラメータを100回試行後に出力するチューニング用のコードを書いてください。チューニングの要件は以下です。
-PRINT_EVERY: i64 = 1000000固定
-NUM_EPOCHS: i64 = 100000固定
-LEARNING_RATE: f64 = 0.01から0.0001まで
-MEMORY_MAXLEN: usize = 1から10000まで
-GAMMA: f32 = 0.01から1.0まで
-EPSILON: f64 = 0.5から1.0まで
-EPSILON_MIN: f64 = 0.01から0.5まで
-EPSILON_DECAY: f64 = 0.99から0.999まで
-BATCH_SIZE: usize = 1から10000まで
-UPDATE_TARGET_EVERY: usize = 1から1000まで
-REPLAY_EVERY: usize = 1から1000まで
-
-
-以下はlearn関数のサンプル
-fn main() {
-    learn(
-        NUM_EPOCHS,
-        LEARNING_RATE,
-        MEMORY_MAXLEN,
-        GAMMA,
-        EPSILON,
-        EPSILON_MIN,
-        EPSILON_DECAY,
-        BATCH_SIZE,
-        UPDATE_TARGET_EVERY,
-        PRINT_EVERY,
-        REPLAY_EVERY,
-    );
-} */
