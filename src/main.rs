@@ -1,17 +1,24 @@
 mod othello_board;
+use indicatif::{ProgressBar, ProgressStyle};
 use othello_board::*;
 use rand::seq::{IteratorRandom, SliceRandom};
 use rand::Rng;
+use rayon;
 use rayon::iter::IntoParallelIterator;
+use rayon::iter::ParallelIterator;
 use std::collections::VecDeque;
 use std::io::{stdout, Write};
 use tch;
 use tch::nn::{Module, OptimizerConfig, Sequential, VarStore};
 use tch::{nn, Device, Tensor};
-use rayon;
-use rayon::iter::ParallelIterator;
 
-fn dqn(vs: &nn::Path, input_dim: i64, output_dim: i64, num_layers: u32, first_layer_size: i64) -> Sequential {
+fn dqn(
+    vs: &nn::Path,
+    input_dim: i64,
+    output_dim: i64,
+    num_layers: u32,
+    first_layer_size: i64,
+) -> Sequential {
     (0..num_layers)
         .fold(
             nn::seq()
@@ -76,8 +83,20 @@ impl<'a> DQNAgent<'a> {
     ) -> Self {
         let vs_q: VarStore = VarStore::new(Device::Cpu);
         let mut vs_t: VarStore = VarStore::new(Device::Cpu);
-        let q_network: Sequential = dqn(&vs_q.root(), state_dim, action_dim, num_layers, first_layer_size);
-        let target_network: Sequential = dqn(&vs_t.root(), state_dim, action_dim, num_layers, first_layer_size);
+        let q_network: Sequential = dqn(
+            &vs_q.root(),
+            state_dim,
+            action_dim,
+            num_layers,
+            first_layer_size,
+        );
+        let target_network: Sequential = dqn(
+            &vs_t.root(),
+            state_dim,
+            action_dim,
+            num_layers,
+            first_layer_size,
+        );
         let _ = vs_t.copy(&vs_q);
         let optimizer = nn::Adam::default().build(&vs_q, learning_rate).unwrap();
         let memory: VecDeque<([i64; 64], i64, f64, [i64; 64], bool)> =
@@ -244,7 +263,7 @@ fn learn(
     replay_every: usize,
     num_layers: u32,
     first_layer_size: i64,
-) ->f64 {
+) -> f64 {
     let mut board = Board::new();
     let mut agent = DQNAgent::new(
         64,
@@ -364,13 +383,23 @@ fn learn(
 }
 
 fn main() {
-    const NUM_PARALLEL: usize=200;
-    const NUM_TRIALS: usize=1000;
+    const NUM_PARALLEL: usize = 200;
+    const NUM_TRIALS: usize = 1000;
     // 並列処理を行うスレッドプールを指定されたジョブ数で作成
     rayon::ThreadPoolBuilder::new()
         .num_threads(NUM_PARALLEL)
         .build_global()
         .unwrap();
+
+    let pb = ProgressBar::new(NUM_TRIALS as u64);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template(
+                "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} ({eta})",
+            )
+            .unwrap()
+            .progress_chars("#>-"),
+    );
 
     let best_result = (0..NUM_TRIALS)
         .into_par_iter()
@@ -404,6 +433,8 @@ fn main() {
                 first_layer_size,
             );
 
+            pb.inc(1);
+
             // 勝率とパラメータをタプルで返す
             (
                 win_rate,
@@ -424,8 +455,10 @@ fn main() {
         })
         .reduce(
             || (0.0, (0.0, 0, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0)), // 初期値
-            |a, b| if a.0 > b.0 { a } else { b }, // 最大値を選択
+            |a, b| if a.0 > b.0 { a } else { b },                  // 最大値を選択
         );
+    
+    pb.finish_with_message("完了！");
 
     let (best_win_rate, best_params) = best_result;
 
