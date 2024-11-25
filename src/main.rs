@@ -8,13 +8,8 @@ use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 
 fn main() {
-    const NUM_PARALLEL: usize = 180;
     const NUM_TRIALS: usize = 1000;
     // 並列処理を行うスレッドプールを指定されたジョブ数で作成
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(NUM_PARALLEL)
-        .build_global()
-        .unwrap();
 
     let pb = ProgressBar::new(NUM_TRIALS as u64);
     pb.set_style(
