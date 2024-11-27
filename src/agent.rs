@@ -130,8 +130,7 @@ impl<'a> DQNAgent<'a> {
     pub fn get_legal_actions(&mut self) -> Vec<usize> {
         let mut legal_actions: Vec<usize> = Vec::new();
         for [pos1, pos2] in
-            self.board
-                .get_valid_moves(if self.board.black_turn { BLACK } else { WHITE })
+            self.board.get_valid_moves(if self.board.black_turn { BLACK } else { WHITE })
         {
             legal_actions.push(pos1 * 8 + pos2);
         }

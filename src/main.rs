@@ -56,12 +56,8 @@ fn learn(
     let mut rng = rand::thread_rng();
     const BLACK_AND_WHITE: [i64; 2] = [BLACK, WHITE];
 
-    //#[inline]
-    fn converter(board: &mut Board, color: i64) -> [i64; 64] {
-        let mut converted: [i64; 64] = board.board.as_flattened().to_vec().try_into().unwrap();
-        for [y, x] in board.get_valid_moves(color).iter() {
-            converted[y * 8 + x] = 3;
-        }
+    fn converter(board: &Board) -> [i64; 64] {
+        let converted: [i64; 64] = board.board.as_flattened().try_into().unwrap();
         converted
     }
 
@@ -70,15 +66,13 @@ fn learn(
         other_color = if ai_color == WHITE { BLACK } else { WHITE };
         step = 0;
         if other_color == BLACK {
-            other_place = *agent
-                .board
-                .get_valid_moves(ai_color)
+            other_place = *agent.board.get_valid_moves(other_color)
                 .choose(&mut rng)
                 .unwrap();
             agent.board.apply_move(other_place);
         };
         while !agent.board.game_ended() {
-            observation = converter(agent.board, ai_color);
+            observation = converter(agent.board);
 
             action = agent.act(observation);
             place = [
@@ -94,9 +88,7 @@ fn learn(
                     !agent.board.black_turn
                 })
             {
-                other_place = *agent
-                    .board
-                    .get_valid_moves(other_color)
+                other_place = *agent.board.get_valid_moves(other_color)
                     .choose(&mut rng)
                     .unwrap();
                 agent.board.apply_move(other_place);
@@ -119,7 +111,7 @@ fn learn(
             } else {
                 reward = 0.0;
             }
-            observation_next = converter(agent.board, ai_color);
+            observation_next = converter(agent.board);
             done = agent.board.game_ended();
             agent.remember(observation, action as i64, reward, observation_next, done);
             step += 1;
@@ -141,10 +133,10 @@ fn learn(
     }
     (results[0] as f64) / (results.iter().sum::<u64>() as f64)
 }
-
+//18秒
 fn main() {
     let start=Instant::now();
-    learn(5000, 0.0001, 100, 0.99, 1.0, 0.2, 0.995, 64, 100, 1000000, 20, 2, 32);
+    println!("勝率: {:.3}", learn(5000, 0.0001, 100, 0.99, 1.0, 0.1, 0.995, 64, 100, 1000000, 20, 2, 32));
     /*
     const NUM_TRIALS: usize = 5;
     // 並列処理を行うスレッドプールを指定されたジョブ数で作成
