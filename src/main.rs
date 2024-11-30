@@ -1,11 +1,9 @@
 mod agent;
 mod othello_board;
 use agent::DQNAgent;
-use othello_board::*;
-use rand::Rng;
-use rand::seq::SliceRandom;
-use std::io::{stdout, Write};
 use indicatif::{ProgressBar, ProgressStyle};
+use othello_board::*;
+use rand::prelude::*;
 use std::time::Instant;
 
 fn learn(
@@ -18,16 +16,14 @@ fn learn(
     epsilon_decay: f64,
     batch_size: usize,
     update_target_every: usize,
-    print_every: i64,
     replay_every: usize,
     num_layers: u32,
     first_layer_size: i64,
 ) -> f64 {
-    let mut board = Board::new();
+    let mut board: Board = Board::new();
     let mut agent = DQNAgent::new(
         64,
         64,
-        &mut board,
         learning_rate,
         memory_maxlen,
         gamma,
@@ -44,102 +40,84 @@ fn learn(
 
     let mut ai_color: i64;
     let mut other_color: i64;
-    let mut step: usize;
+    let mut step: usize = 0;
     let mut place: [usize; 2];
     let mut other_place: [usize; 2];
     let mut observation: [i64; 64];
     let mut action: usize;
-    let mut reward: f64;
+    let mut reward: f64 = 0.0;
     let mut observation_next: [i64; 64];
     let mut done: bool;
     let [mut whites, mut blacks, _]: [u8; 3];
+    let bench_from: i64 = num_epochs - 101;
     let mut rng = rand::thread_rng();
-    const BLACK_AND_WHITE: [i64; 2] = [BLACK, WHITE];
-
-    fn converter(board: &Board) -> [i64; 64] {
-        let converted: [i64; 64] = board.board.as_flattened().try_into().unwrap();
-        converted
-    }
 
     for epoch in 0..num_epochs {
-        ai_color = *BLACK_AND_WHITE.choose(&mut rng).unwrap();
-        other_color = if ai_color == WHITE { BLACK } else { WHITE };
-        step = 0;
-        if other_color == BLACK {
-            other_place = *agent.board.get_valid_moves(other_color)
-                .choose(&mut rng)
-                .unwrap();
-            agent.board.apply_move(other_place);
+        [ai_color, other_color] = if rng.gen::<bool>() {
+            [BLACK, WHITE]
+        } else {
+            [WHITE, BLACK]
         };
-        while !agent.board.game_ended() {
-            observation = converter(agent.board);
+        if other_color == BLACK {
+            other_place = *board.get_valid_moves(other_color).choose(&mut rng).unwrap();
+            board.apply_move(other_place);
+        };
+        while !board.game_ended() {
+            observation = board.board.as_flattened().try_into().unwrap();
 
-            action = agent.act(observation);
-            place = [
-                (action as isize / 8) as usize,
-                (action as isize % 8) as usize,
-            ];
-            agent.board.apply_move(place);
+            action = agent.act(observation, &board);
+            place = [action / 8, action % 8];
+            board.apply_move(place);
 
-            while (!agent.board.game_ended())
+            while (!board.game_ended())
                 && (if other_color == BLACK {
-                    agent.board.black_turn
+                    board.black_turn
                 } else {
-                    !agent.board.black_turn
+                    !board.black_turn
                 })
             {
-                other_place = *agent.board.get_valid_moves(other_color)
-                    .choose(&mut rng)
-                    .unwrap();
-                agent.board.apply_move(other_place);
+                other_place = *board.get_valid_moves(other_color).choose(&mut rng).unwrap();
+                board.apply_move(other_place);
             }
-            if agent.board.game_ended() {
-                [whites, blacks, _] = agent.board.count_stones();
+            if board.game_ended() {
+                [whites, blacks, _] = board.count_stones();
                 if (ai_color == BLACK && blacks > whites) || (ai_color == WHITE && blacks < whites)
                 {
                     reward = 1.0;
-                    results[0] += 1;
                 } else if (ai_color == BLACK && blacks < whites)
                     || (ai_color == WHITE && blacks > whites)
                 {
                     reward = -1.0;
-                    results[1] += 1;
                 } else {
                     reward = 0.0;
-                    results[2] += 1;
                 }
             } else {
                 reward = 0.0;
             }
-            observation_next = converter(agent.board);
-            done = agent.board.game_ended();
+            observation_next = board.board.as_flattened().try_into().unwrap();
+            done = board.game_ended();
             agent.remember(observation, action as i64, reward, observation_next, done);
             step += 1;
             if step % replay_every == 0 {
                 agent.replay();
             }
         }
-        agent.board.reset();
-        if (epoch + 1) % print_every == 0 {
-            print!(
-                "\r勝利: {}, 敗北: {}, 引き分け: {}, 勝率: {:.3}",
-                results[0],
-                results[1],
-                results[2],
-                (results[0] as f64) / (results.iter().sum::<u64>() as f64)
-            );
-            stdout().flush().unwrap();
+        if epoch > bench_from {
+            if reward == 1.0 {
+                results[0] += 1;
+            } else if reward == -1.0 {
+                results[1] += 1;
+            } else {
+                results[2] += 1;
+            }
         }
+        board.reset();
     }
     (results[0] as f64) / (results.iter().sum::<u64>() as f64)
 }
-//18秒
 fn main() {
-    let start=Instant::now();
-    println!("勝率: {:.3}", learn(5000, 0.0001, 100, 0.99, 1.0, 0.1, 0.995, 64, 100, 1000000, 20, 2, 32));
-    /*
-    const NUM_TRIALS: usize = 5;
-    // 並列処理を行うスレッドプールを指定されたジョブ数で作成
+    let start: Instant = Instant::now();
+    const NUM_TRIALS: usize = 1000;
 
     let pb = ProgressBar::new(NUM_TRIALS as u64);
     pb.set_style(
@@ -160,11 +138,11 @@ fn main() {
             let gamma = rng.gen_range(0.01..=1.0);
             let epsilon_min = rng.gen_range(0.1..=0.5);
             let epsilon_decay = rng.gen_range(0.99..=0.999);
-            let batch_size = rng.gen_range(50..=200);
+            let batch_size = rng.gen_range(10..=100);
             let update_target_every = rng.gen_range(100..=200);
             let replay_every = rng.gen_range(1..=100);
             let num_layers: u32 = rng.gen_range(1..=4);
-            let first_layer_size: i64 = [8, 16, 32, 64, 128][rng.gen_range(0..5)];
+            let first_layer_size: i64 = [8, 16, 32, 64][rng.gen_range(0..5)];
 
             let win_rate = learn(
                 10000,
@@ -176,7 +154,6 @@ fn main() {
                 epsilon_decay,
                 batch_size,
                 update_target_every,
-                1000000,
                 replay_every,
                 num_layers,
                 first_layer_size,
@@ -221,8 +198,7 @@ fn main() {
     println!("REPLAY_EVERY: {}", best_params.7);
     println!("NUM_LAYERS: {}", best_params.8);
     println!("FIRST_LAYER_SIZE: {}", best_params.9);
-    */
 
-    let end=start.elapsed().as_secs();
-    println!("実行時間:{}秒",end);
+    let end = start.elapsed().as_secs();
+    println!("実行時間:{}秒", end);
 }

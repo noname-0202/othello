@@ -1,6 +1,5 @@
 use crate::othello_board::*;
-use rand::seq::{IteratorRandom, SliceRandom};
-use rand::Rng;
+use rand::prelude::*;
 use std::collections::VecDeque;
 use tch;
 use tch::nn::{Module, OptimizerConfig, Sequential, VarStore};
@@ -41,7 +40,7 @@ fn dqn(
         ))
 }
 
-pub struct DQNAgent<'a> {
+pub struct DQNAgent {
     vs_q: VarStore,
     vs_t: VarStore,
     q_network: Sequential,
@@ -53,17 +52,14 @@ pub struct DQNAgent<'a> {
     epsilon_min: f64,
     epsilon_decay: f64,
     batch_size: usize,
-    pub board: &'a mut Board,
     steps: usize,
-    rng: rand::rngs::ThreadRng,
     update_target_every: usize,
+    rng: ThreadRng,
 }
-
-impl<'a> DQNAgent<'a> {
+impl DQNAgent {
     pub fn new(
         state_dim: i64,
         action_dim: i64,
-        board: &'a mut Board,
         learning_rate: f64,
         memory_maxlen: usize,
         gamma: f32,
@@ -107,10 +103,9 @@ impl<'a> DQNAgent<'a> {
             epsilon_min,
             epsilon_decay,
             batch_size,
-            board,
             steps: 0,
-            rng: rand::thread_rng(),
             update_target_every,
+            rng: rand::thread_rng(),
         }
     }
     pub fn remember(
@@ -127,19 +122,15 @@ impl<'a> DQNAgent<'a> {
         self.memory
             .push_back((state, action, reward, next_state, done));
     }
-    pub fn get_legal_actions(&mut self) -> Vec<usize> {
-        let mut legal_actions: Vec<usize> = Vec::new();
-        for [pos1, pos2] in
-            self.board.get_valid_moves(if self.board.black_turn { BLACK } else { WHITE })
-        {
-            legal_actions.push(pos1 * 8 + pos2);
-        }
-        legal_actions
-    }
-    pub fn act(&mut self, state: [i64; 64]) -> usize {
-        let legal_actions: Vec<usize> = self.get_legal_actions();
+    pub fn act(&mut self, state: [i64; 64], board: &Board) -> usize {
+        let legal_actions: Vec<usize> = board
+            .get_valid_moves(if board.black_turn { BLACK } else { WHITE })
+            .iter()
+            .map(|&i| i[0] * 8 + i[1])
+            .collect();
+
         if self.rng.gen::<f64>() <= self.epsilon {
-            *legal_actions.choose(&mut self.rng).unwrap()
+            *legal_actions.iter().choose(&mut self.rng).unwrap()
         } else {
             let state_tensor: Tensor =
                 Tensor::from_slice(&state.iter().map(|&i| i as f32).collect::<Vec<f32>>());
@@ -147,11 +138,10 @@ impl<'a> DQNAgent<'a> {
             let legal_q_values: Tensor = q_values.index_select(
                 0,
                 &Tensor::from_slice(
-                    legal_actions
+                    &legal_actions
                         .iter()
                         .map(|&i| i as i64)
-                        .collect::<Vec<i64>>()
-                        .as_slice(),
+                        .collect::<Vec<i64>>(),
                 ),
             );
             let idx: i64 = legal_q_values.argmax(0, false).try_into().unwrap();

@@ -13,47 +13,40 @@ const LOOKUP_ARRAY: [[isize; 2]; 8] = [
 ];
 
 pub struct Board {
-    default_board: [[i64; 8]; 8],
     pub board: [[i64; 8]; 8],
     pub black_turn: bool,
 }
 
 impl Board {
     pub fn new() -> Self {
-        let mut default_board: [[i64; 8]; 8] = [[EMPTY; 8]; 8];
-        default_board[3][4] = BLACK;
-        default_board[4][3] = BLACK;
-        default_board[3][3] = WHITE;
-        default_board[4][4] = WHITE;
+        let mut board: [[i64; 8]; 8] = [[EMPTY; 8]; 8];
+        board[3][4] = BLACK;
+        board[4][3] = BLACK;
+        board[3][3] = WHITE;
+        board[4][4] = WHITE;
 
         Board {
-            default_board,
-            board: default_board.clone(),
+            board,
             black_turn: true,
         }
     }
-
     pub fn reset(&mut self) {
-        self.board = self.default_board.clone();
+        *self = Self::new();
     }
-
     pub fn get_valid_moves(&self, color: i64) -> Vec<[usize; 2]> {
-        let mut places = Vec::new();
+        let mut valid_moves: Vec<[usize; 2]> = Vec::new();
+    
         for i in 0..8 {
             for j in 0..8 {
-                if self.board[i][j] == color {
-                    if let Some(looked_up) = self.lookup(i as isize, j as isize, color) {
-                        places.extend(looked_up);
+                if self.board[i][j] == EMPTY {
+                    if self.lookup(i as isize, j as isize, color).is_some() {
+                        valid_moves.push([i, j]);
                     }
                 }
             }
         }
-        places.sort_unstable();
-        places.dedup();
-
-        places
+        valid_moves
     }
-
     pub fn lookup(&self, row: isize, column: isize, color: i64) -> Option<Vec<[usize; 2]>> {
         let other: i64 = if color == BLACK { WHITE } else { BLACK };
 
@@ -64,44 +57,29 @@ impl Board {
         }
 
         for [x, y] in LOOKUP_ARRAY {
-            let pos = self.check_direction(row, column, x, y, other);
-            if pos.is_some() {
-                places.push(pos.unwrap());
-            }
+            let mut i: isize = row + x;
+            let mut j: isize = column + y;
+            if i >= 0 && j >= 0 && i < 8 && j < 8 && self.board[i as usize][j as usize] == other {
+                i += x;
+                j += y;
+                while i >= 0
+                    && j >= 0
+                    && i < 8
+                    && j < 8
+                    && self.board[i as usize][j as usize] == other
+                {
+                    i += x;
+                    j += y;
+                }
+                if i >= 0 && j >= 0 && i < 8 && j < 8 && self.board[i as usize][j as usize] == EMPTY
+                {
+                    places.push([i as usize, j as usize]);
+                }
+            };
         }
         Some(places)
     }
-    pub fn check_direction(
-        &self,
-        row: isize,
-        colmn: isize,
-        row_add: isize,
-        column_add: isize,
-        other_color: i64,
-    ) -> Option<[usize; 2]> {
-        let mut i: isize = row + row_add;
-        let mut j: isize = colmn + column_add;
-        if i >= 0 && j >= 0 && i < 8 && j < 8 && self.board[i as usize][j as usize] == other_color {
-            i += row_add;
-            j += column_add;
-            while i >= 0
-                && j >= 0
-                && i < 8
-                && j < 8
-                && self.board[i as usize][j as usize] == other_color
-            {
-                i += row_add;
-                j += column_add;
-            }
-            if i >= 0 && j >= 0 && i < 8 && j < 8 && self.board[i as usize][j as usize] == EMPTY {
-                Some([i as usize, j as usize])
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
+
     pub fn apply_move(&mut self, move_: [usize; 2]) {
         let color: i64 = if self.black_turn { BLACK } else { WHITE };
         if self.get_valid_moves(color).contains(&move_) {
