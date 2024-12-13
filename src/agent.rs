@@ -46,7 +46,7 @@ pub struct DQNAgent {
     q_network: Sequential,
     target_network: Sequential,
     optimizer: nn::Optimizer,
-    memory: VecDeque<([i64; 64], i64, f64, [i64; 64], bool)>,
+    memory: VecDeque<([BoardType; 64], i64, f64, [BoardType; 64], bool)>,
     gamma: f32,
     epsilon: f64,
     epsilon_min: f64,
@@ -71,8 +71,8 @@ impl DQNAgent {
         num_layers: u32,
         first_layer_size: i64,
     ) -> Self {
-        let vs_q: VarStore = VarStore::new(Device::Cpu);
-        let mut vs_t: VarStore = VarStore::new(Device::Cpu);
+        let vs_q: VarStore = VarStore::new(Device::cuda_if_available());
+        let mut vs_t: VarStore = VarStore::new(Device::cuda_if_available());
         let q_network: Sequential = dqn(
             &vs_q.root(),
             state_dim,
@@ -89,7 +89,7 @@ impl DQNAgent {
         );
         let _ = vs_t.copy(&vs_q);
         let optimizer = nn::Adam::default().build(&vs_q, learning_rate).unwrap();
-        let memory: VecDeque<([i64; 64], i64, f64, [i64; 64], bool)> =
+        let memory: VecDeque<([BoardType; 64], i64, f64, [BoardType; 64], bool)> =
             VecDeque::with_capacity(memory_maxlen);
         Self {
             vs_q,
@@ -110,10 +110,10 @@ impl DQNAgent {
     }
     pub fn remember(
         &mut self,
-        state: [i64; 64],
+        state: [BoardType; 64],
         action: i64,
         reward: f64,
-        next_state: [i64; 64],
+        next_state: [BoardType; 64],
         done: bool,
     ) {
         if self.memory.len() >= self.memory.capacity() {
@@ -122,7 +122,7 @@ impl DQNAgent {
         self.memory
             .push_back((state, action, reward, next_state, done));
     }
-    pub fn act(&mut self, state: [i64; 64], board: &Board) -> usize {
+    pub fn act(&mut self, state: [BoardType; 64], board: &Board) -> usize {
         let legal_actions: Vec<usize> = board
             .get_valid_moves(if board.black_turn { BLACK } else { WHITE })
             .iter()
@@ -133,7 +133,7 @@ impl DQNAgent {
             *legal_actions.iter().choose(&mut self.rng).unwrap()
         } else {
             let state_tensor: Tensor =
-                Tensor::from_slice(&state.iter().map(|&i| i as f32).collect::<Vec<f32>>());
+                Tensor::from_slice(&state.iter().map(|&i| i as f32).collect::<Vec<f32>>()).to(Device::cuda_if_available());
             let q_values = self.q_network.forward(&state_tensor);
             let legal_q_values: Tensor = q_values.index_select(
                 0,
@@ -142,7 +142,7 @@ impl DQNAgent {
                         .iter()
                         .map(|&i| i as i64)
                         .collect::<Vec<i64>>(),
-                ),
+                ).to(Device::cuda_if_available()),
             );
             let idx: i64 = legal_q_values.argmax(0, false).try_into().unwrap();
             legal_actions[idx as usize]
@@ -150,7 +150,7 @@ impl DQNAgent {
     }
     pub fn replay(&mut self) {
         if self.memory.len() >= self.batch_size as usize {
-            let minibatch: Vec<&([i64; 64], i64, f64, [i64; 64], bool)> = self
+            let minibatch: Vec<&([BoardType; 64], i64, f64, [BoardType; 64], bool)> = self
                 .memory
                 .iter()
                 .choose_multiple(&mut self.rng, self.batch_size);
@@ -203,18 +203,18 @@ impl DQNAgent {
 
             let q_values: Tensor = self
                 .q_network
-                .forward(&states_tensor)
-                .gather(1, &actions_tensor.unsqueeze(1), false)
+                .forward(&states_tensor.to(Device::cuda_if_available()))
+                .gather(1, &actions_tensor.unsqueeze(1).to(Device::cuda_if_available()), false)
                 .squeeze_dim(1);
 
             let next_q_values = self
                 .target_network
-                .forward(&next_states_tensor)
+                .forward(&next_states_tensor.to(Device::cuda_if_available()))
                 .max_dim(1, false)
                 .0;
 
             let target_q_values =
-                rewards_tensor + self.gamma * next_q_values * (dones_tensor.logical_not());
+                rewards_tensor.to(Device::cuda_if_available()) + self.gamma * next_q_values * (dones_tensor.logical_not().to(Device::cuda_if_available()));
             let loss = q_values.mse_loss(&target_q_values, tch::Reduction::Mean);
 
             self.optimizer.zero_grad();

@@ -20,6 +20,6 @@ debug-assertions = false # デバッグアサーションを無効化
 overflow-checks = false # オーバーフローチェックを無効化
 
 [dependencies]
-tch = {git="https://github.com/LaurentMazare/tch-rs.git", branch="main"}
+tch = "0.17.0"
 indicatif="0.17.9"
 rand="0.8.5"

@@ -38,15 +38,15 @@ fn learn(
 
     let mut results: [u64; 3] = [0, 0, 0];
 
-    let mut ai_color: i64;
-    let mut other_color: i64;
+    let mut ai_color: BoardType;
+    let mut other_color: BoardType;
     let mut step: usize = 0;
     let mut place: [usize; 2];
     let mut other_place: [usize; 2];
-    let mut observation: [i64; 64];
+    let mut observation: [BoardType; 64];
     let mut action: usize;
     let mut reward: f64 = 0.0;
-    let mut observation_next: [i64; 64];
+    let mut observation_next: [BoardType; 64];
     let mut done: bool;
     let [mut whites, mut blacks, _]: [u8; 3];
     let bench_from: i64 = num_epochs - 101;
@@ -69,17 +69,23 @@ fn learn(
             place = [action / 8, action % 8];
             board.apply_move(place);
 
-            while (!board.game_ended())
-                && (if other_color == BLACK {
-                    board.black_turn
+            loop {
+                done = board.game_ended();
+                if (!done)
+                    && (if other_color == BLACK {
+                        board.black_turn
+                    } else {
+                        !board.black_turn
+                    })
+                {
+                    other_place = *board.get_valid_moves(other_color).choose(&mut rng).unwrap();
+                    board.apply_move(other_place);
                 } else {
-                    !board.black_turn
-                })
-            {
-                other_place = *board.get_valid_moves(other_color).choose(&mut rng).unwrap();
-                board.apply_move(other_place);
+                    break;
+                }
             }
-            if board.game_ended() {
+
+            if done {
                 [whites, blacks, _] = board.count_stones();
                 if (ai_color == BLACK && blacks > whites) || (ai_color == WHITE && blacks < whites)
                 {
@@ -95,7 +101,6 @@ fn learn(
                 reward = 0.0;
             }
             observation_next = board.board.as_flattened().try_into().unwrap();
-            done = board.game_ended();
             agent.remember(observation, action as i64, reward, observation_next, done);
             step += 1;
             if step % replay_every == 0 {
@@ -117,6 +122,11 @@ fn learn(
 }
 fn main() {
     let start: Instant = Instant::now();
+    println!(
+        "勝率: {:.3}",
+        learn(1000, 0.0001, 100, 0.99, 1.0, 0.1, 0.995, 64, 100, 20, 5, 32)
+    );
+    /*
     const NUM_TRIALS: usize = 1000;
 
     let pb = ProgressBar::new(NUM_TRIALS as u64);
@@ -134,13 +144,13 @@ fn main() {
         .map(|_i| {
             let mut rng = rand::thread_rng();
             let learning_rate = rng.gen_range(0.0001..=0.001);
-            let memory_maxlen = rng.gen_range(100..=500);
+            let memory_maxlen = rng.gen_range(10..=500);
             let gamma = rng.gen_range(0.01..=1.0);
             let epsilon_min = rng.gen_range(0.1..=0.5);
             let epsilon_decay = rng.gen_range(0.99..=0.999);
-            let batch_size = rng.gen_range(10..=100);
+            let batch_size = rng.gen_range(10..=500);
             let update_target_every = rng.gen_range(100..=200);
-            let replay_every = rng.gen_range(1..=100);
+            let replay_every = rng.gen_range(5..=100);
             let num_layers: u32 = rng.gen_range(1..=4);
             let first_layer_size: i64 = [8, 16, 32, 64][rng.gen_range(0..5)];
 
@@ -197,7 +207,7 @@ fn main() {
     println!("UPDATE_TARGET_EVERY: {}", best_params.6);
     println!("REPLAY_EVERY: {}", best_params.7);
     println!("NUM_LAYERS: {}", best_params.8);
-    println!("FIRST_LAYER_SIZE: {}", best_params.9);
+    println!("FIRST_LAYER_SIZE: {}", best_params.9);*/
 
     let end = start.elapsed().as_secs();
     println!("実行時間:{}秒", end);
