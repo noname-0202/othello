@@ -1,7 +1,7 @@
 use crate::othello_board::*;
 use rand::prelude::*;
 use std::collections::VecDeque;
-use tch;
+use tch::{self, Kind};
 use tch::nn::{Module, OptimizerConfig, Sequential, VarStore};
 use tch::{nn, Device, Tensor};
 
@@ -71,8 +71,9 @@ impl DQNAgent {
         num_layers: u32,
         first_layer_size: i64,
     ) -> Self {
-        let vs_q: VarStore = VarStore::new(Device::cuda_if_available());
+        let mut vs_q: VarStore = VarStore::new(Device::cuda_if_available());
         let mut vs_t: VarStore = VarStore::new(Device::cuda_if_available());
+
         let q_network: Sequential = dqn(
             &vs_q.root(),
             state_dim,
@@ -88,6 +89,8 @@ impl DQNAgent {
             first_layer_size,
         );
         let _ = vs_t.copy(&vs_q);
+        vs_q.bfloat16();
+        vs_t.bfloat16();
         let optimizer = nn::Adam::default().build(&vs_q, learning_rate).unwrap();
         let memory: VecDeque<([BoardType; 64], i64, f64, [BoardType; 64], bool)> =
             VecDeque::with_capacity(memory_maxlen);
@@ -133,7 +136,7 @@ impl DQNAgent {
             *legal_actions.iter().choose(&mut self.rng).unwrap()
         } else {
             let state_tensor: Tensor =
-                Tensor::from_slice(&state.iter().map(|&i| i as f32).collect::<Vec<f32>>()).to(Device::cuda_if_available());
+                Tensor::from_slice(&state.iter().map(|&i| i as f32).collect::<Vec<f32>>()).to_kind(Kind::BFloat16).to(Device::cuda_if_available());
             let q_values = self.q_network.forward(&state_tensor);
             let legal_q_values: Tensor = q_values.index_select(
                 0,
@@ -203,20 +206,19 @@ impl DQNAgent {
 
             let q_values: Tensor = self
                 .q_network
-                .forward(&states_tensor.to(Device::cuda_if_available()))
+                .forward(&states_tensor.to_kind(Kind::BFloat16).to(Device::cuda_if_available()))
                 .gather(1, &actions_tensor.unsqueeze(1).to(Device::cuda_if_available()), false)
                 .squeeze_dim(1);
 
             let next_q_values = self
                 .target_network
-                .forward(&next_states_tensor.to(Device::cuda_if_available()))
+                .forward(&next_states_tensor.to_kind(Kind::BFloat16).to(Device::cuda_if_available()))
                 .max_dim(1, false)
                 .0;
 
             let target_q_values =
-                rewards_tensor.to(Device::cuda_if_available()) + self.gamma * next_q_values * (dones_tensor.logical_not().to(Device::cuda_if_available()));
+                rewards_tensor.to_kind(Kind::BFloat16).to(Device::cuda_if_available()) + self.gamma * next_q_values * (dones_tensor.logical_not().to(Device::cuda_if_available()));
             let loss = q_values.mse_loss(&target_q_values, tch::Reduction::Mean);
-
             self.optimizer.zero_grad();
             self.optimizer.backward_step_clip_norm(&loss, 1.0);
 
